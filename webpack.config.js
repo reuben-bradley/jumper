@@ -3,7 +3,9 @@ const webpack = require('webpack');
 
 module.exports = {
     mode: 'development',
-    entry: path.resolve(__dirname, 'src/js/index.js'),
+    entry: {
+        game: path.resolve(__dirname, 'src/js/index.js')
+    },
     output: {
         path: path.resolve(__dirname, 'static/js'),
         filename: 'bundle.js'
@@ -18,6 +20,17 @@ module.exports = {
         new webpack.DefinePlugin({
             'CANVAS_RENDERER': JSON.stringify(true),
             'WEBGL_RENDERER': JSON.stringify(true)
-        })
-    ]
+        }),
+    ],
+    optimization: {
+        splitChunks: {
+            cacheGroups: {
+                vendor: {
+                    test: /[\\/]node_modules[\\/]phaser[\\/]/,
+                    name: 'vendor',
+                    chunks: 'all'
+                }
+            }
+        }
+    }
 };
