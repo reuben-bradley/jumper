@@ -1,18 +1,31 @@
 import 'phaser';
-import Title from '../scenes/title';
-import Main from '../scenes/main';
 
 const config = {
-    type: Phaser.AUTO,
-    width: 800,
-    height: 600,
-    physics: {
-        default: 'arcade',
-        arcade: {
-            gravity: { y: 200 }
-        }
+    canvas: {
+        height: 600,
+        width: 800
     },
-    scene: [Title, Main]
+    textStyles: {
+        default: {
+            fontFamily: 'Bangers',
+            fontSize: 16,
+            color: '#bb0000',
+            padding: {
+                x: 5,
+                y: 1
+            }
+        },
+        title: {
+            fontFamily: 'Cinzel Decorative',
+            fontSize: 42,
+            fontWeight: 900,
+            color: '#00bb00',
+            padding: {
+                x: 5,
+                y: 1
+            }
+        }
+    }
 };
 
 export default config;
