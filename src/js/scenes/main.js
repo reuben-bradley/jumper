@@ -1,3 +1,7 @@
+import config from '../config/config';
+
+const MAX_JUMP_CYCLES = 15;
+const MIN_PLATFORM_WIDTH = 50;
 
 export default class Main extends Phaser.Scene {
     constructor() {
@@ -11,28 +15,35 @@ export default class Main extends Phaser.Scene {
     }
 
     create() {
-        const platforms = this.physics.add.staticGroup();
-        // Slightly counter-intuitive, but we set the collision bounds here ...
-        const ground = this.add.tileSprite(0, 600, 800, 30, 'jungle-brown', 7);
+        // Add a physics group for all our platforms
+        this.platforms = this.physics.add.staticGroup();
+        // Setting up the bottom of the level
+        const ground = this.add.tileSprite(0, config.canvas.height, config.canvas.width, 38, 'jungle-brown', 7);
         ground.setOrigin(0, 1);
-        // ... and then the actual render size here
-        ground.setSize(800, 38);
-        platforms.add(ground);
+        this.platforms.add(ground);
+        // We shrink and offset the bounding box so that the player stands 
+        //  on the ground instead of floating above it
+        ground.body.setSize(config.canvas.width, 32);
+        ground.body.setOffset(0, 6);
+        // Generate more random platforms
+        this.lastPlatformHeight = config.canvas.height;
+        this.randomPlatforms();
 
         this.cameras.main.setBackgroundColor(0x2288ff);
 
         // Set up the player character sprite
         this.player = this.physics.add.sprite(100, 540, 'character');
         this.player.setScale(2);
-        this.player.setBounce(0.2);
+        this.player.setBounce(0.1);
         this.player.setCollideWorldBounds(true);
         this.player.body.setGravityY(200);
+        this.player.setSize(16, 24).setOffset(8, 4);
         this.player.isJumping = false;
         this.player.activeJump = 0;
         this.player.isAnimationComplete = true;
         this.player.on('animationcomplete', (animation) => { this.handlePlayerAnimationComplete(animation); });
 
-        this.physics.add.collider(this.player, platforms, () => this.handlePlayerLand());
+        this.physics.add.collider(this.player, this.platforms, () => this.handlePlayerLand());
 
         // Define the character animations
         this.anims.create({
@@ -101,8 +112,8 @@ export default class Main extends Phaser.Scene {
                 this.player.activeJump++;
                 this.player.anims.play('jumpUp');
             }
-            else if ( this.player.activeJump > 0 && this.player.activeJump < 10 ) {
-                this.player.setVelocityY(this.player.body.velocity.y - 30);
+            else if ( this.player.activeJump > 0 && this.player.activeJump < MAX_JUMP_CYCLES ) {
+                this.player.setVelocityY(this.player.body.velocity.y - 20);
                 this.player.activeJump++;
             }
             else {
@@ -131,6 +142,25 @@ export default class Main extends Phaser.Scene {
     handlePlayerAnimationComplete(animation) {
         if ( animation.key == 'jumpLand' ) {
             this.player.isAnimationComplete = true;
+        }
+    }
+
+    randomPlatforms() {
+        // Randomly generate a platform
+        let platformX, platformWidth, platformY, newPlatform;
+
+        while ( this.lastPlatformHeight > 100 ) {
+            // Generate a random position
+            platformX = Math.floor(Math.random() * (config.canvas.width - MIN_PLATFORM_WIDTH));
+            platformWidth = MIN_PLATFORM_WIDTH + Math.floor(Math.random() * (config.canvas.width - platformX - MIN_PLATFORM_WIDTH));
+            platformY = this.lastPlatformHeight - (38 + Math.ceil(Math.random() * 150));
+            // Add the sprite
+            newPlatform = this.add.tileSprite(platformX, platformY, platformWidth, 38, 'jungle-brown', 7);
+            newPlatform.setOrigin(0, 1);
+            this.platforms.add(newPlatform);
+            newPlatform.body.setSize(platformWidth, 32);
+            newPlatform.body.setOffset(0, 6);
+            this.lastPlatformHeight = platformY;
         }
     }
 };
