@@ -29,10 +29,8 @@ export default class Main extends Phaser.Scene {
         this.lastPlatformHeight = config.canvas.height;
         this.randomPlatforms();
 
-        this.cameras.main.setBackgroundColor(0x2288ff);
-
         // Set up the player character sprite
-        this.player = this.physics.add.sprite(100, 540, 'character');
+        this.player = this.physics.add.sprite(config.canvas.width / 2, config.canvas.height - 60, 'character');
         this.player.setScale(2);
         this.player.setBounce(0.1);
         this.player.setCollideWorldBounds(true);
@@ -44,6 +42,11 @@ export default class Main extends Phaser.Scene {
         this.player.on('animationcomplete', (animation) => { this.handlePlayerAnimationComplete(animation); });
 
         this.physics.add.collider(this.player, this.platforms, () => this.handlePlayerLand());
+        this.physics.world.setBounds(0, 0 - config.canvas.height, config.canvas.width, config.canvas.height * 2);
+
+        this.cameras.main.setBackgroundColor(0x2288ff);
+        this.cameras.main.setBounds(0, 0 - config.canvas.height, config.canvas.width, config.canvas.height * 2);
+        this.cameras.main.startFollow(this.player, true, 0, 1);
 
         // Define the character animations
         this.anims.create({
@@ -148,8 +151,15 @@ export default class Main extends Phaser.Scene {
     randomPlatforms() {
         // Randomly generate a platform
         let platformX, platformWidth, platformY, newPlatform;
+        // We're also going to allow the player to move through the platforms,
+        //  but still land ON them
+        const collisionTest = {
+            left: false,
+            right: false,
+            down: false
+        };
 
-        while ( this.lastPlatformHeight > 100 ) {
+        while ( this.lastPlatformHeight > ( 100 - config.canvas.height ) ) {
             // Generate a random position
             platformX = Math.floor(Math.random() * (config.canvas.width - MIN_PLATFORM_WIDTH));
             platformWidth = MIN_PLATFORM_WIDTH + Math.floor(Math.random() * (config.canvas.width - platformX - MIN_PLATFORM_WIDTH));
@@ -160,6 +170,7 @@ export default class Main extends Phaser.Scene {
             this.platforms.add(newPlatform);
             newPlatform.body.setSize(platformWidth, 32);
             newPlatform.body.setOffset(0, 6);
+            newPlatform.body.checkCollision = Object.assign(newPlatform.body.checkCollision, collisionTest);
             this.lastPlatformHeight = platformY;
         }
     }
