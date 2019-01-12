@@ -1,7 +1,15 @@
 import config from '../config/config';
 
 const MAX_JUMP_CYCLES = 15;
+// Constants used to generate random platforms
 const MIN_PLATFORM_WIDTH = 50;
+const MAX_PLATFORM_WIDTH = 250;
+const MAX_PLATFORM_X_DISTANCE = 300;
+const PLATFORM_Y_DISTANCE_DELTA = 100;
+const MIN_PLATFORM_Y_DISTANCE = 90;
+const MIN_Y = (-4 * config.canvas.height);
+const MIN_PLATFORM_Y = MIN_Y + 100;
+const PLATFORM_REDRAW_HEIGHT = -2 * config.canvas.height;
 
 export default class Main extends Phaser.Scene {
     constructor() {
@@ -15,18 +23,21 @@ export default class Main extends Phaser.Scene {
     }
 
     create() {
-        // Add a physics group for all our platforms
+        // Add a physics group for all the random platforms
         this.platforms = this.physics.add.staticGroup();
+        this.startingPlatforms = this.physics.add.staticGroup();
+        window.startingPlatforms = this.startingPlatforms;
         // Setting up the bottom of the level
-        const ground = this.add.tileSprite(0, config.canvas.height, config.canvas.width, 38, 'jungle-brown', 7);
-        ground.setOrigin(0, 1);
-        this.platforms.add(ground);
+        this.ground = this.add.tileSprite(0, config.canvas.height, config.canvas.width, 38, 'jungle-brown', 7);
+        this.ground.setOrigin(0, 1);
+        this.physics.add.existing(this.ground, true);
+        //this.platforms.add(this.ground);
         // We shrink and offset the bounding box so that the player stands 
         //  on the ground instead of floating above it
-        ground.body.setSize(config.canvas.width, 32);
-        ground.body.setOffset(0, 6);
+        this.ground.body.setSize(config.canvas.width, 32);
+        this.ground.body.setOffset(0, 6);
         // Generate more random platforms
-        this.lastPlatformHeight = config.canvas.height;
+        this.lastPlatform = this.ground;
         this.randomPlatforms();
 
         // Set up the player character sprite
@@ -41,11 +52,13 @@ export default class Main extends Phaser.Scene {
         this.player.isAnimationComplete = true;
         this.player.on('animationcomplete', (animation) => { this.handlePlayerAnimationComplete(animation); });
 
+        this.physics.add.collider(this.player, this.ground, () => this.handlePlayerLand());
+        this.physics.add.collider(this.player, this.startingPlatforms, () => this.handlePlayerLand());
         this.physics.add.collider(this.player, this.platforms, () => this.handlePlayerLand());
-        this.physics.world.setBounds(0, 0 - config.canvas.height, config.canvas.width, config.canvas.height * 2);
+        this.physics.world.setBounds(0, MIN_Y, config.canvas.width, config.canvas.height * 5);
 
         this.cameras.main.setBackgroundColor(0x2288ff);
-        this.cameras.main.setBounds(0, 0 - config.canvas.height, config.canvas.width, config.canvas.height * 2);
+        this.cameras.main.setBounds(0, MIN_Y, config.canvas.width, config.canvas.height * 5);
         this.cameras.main.startFollow(this.player, true, 0, 1);
 
         // Define the character animations
@@ -85,6 +98,13 @@ export default class Main extends Phaser.Scene {
     }
 
     update() {
+        // Handle all player movement updates
+        this.updateMovement();
+        // Now we handle the "infinite scroll"
+        this.updatePlatforms();
+    }
+
+    updateMovement() {
         // Handle the left and right movement
         if ( this.cursors.right.isDown ) {
             this.player.setVelocityX(160);
@@ -133,6 +153,20 @@ export default class Main extends Phaser.Scene {
             this.player.anims.play('jumpDown');
         }
     }
+    
+    updatePlatforms() {
+        // First check if the player is above certain thresholds
+        if ( this.player.y < -config.canvas.height && this.startingPlatforms.getLength() > 0 ) {
+            // Player has gone more than two canvas heights' high - we no
+            //  longer need the starting platforms
+            this.startingPlatforms.clear(true);
+        }
+        else if ( this.player.y < PLATFORM_REDRAW_HEIGHT ) {
+            // TODO: Move all platforms down a screen's height, bump the player's position to match,
+            //  and remove any platforms below the starting screen height
+            // Next we generate new platforms for the new screen height
+        }
+    }
 
     handlePlayerLand() {
         if ( this.player.isJumping ) {
@@ -150,7 +184,7 @@ export default class Main extends Phaser.Scene {
 
     randomPlatforms() {
         // Randomly generate a platform
-        let platformX, platformWidth, platformY, newPlatform;
+        let platformX, platformWidth, platformY, newPlatform, platformXRatio, platformXDelta;
         // We're also going to allow the player to move through the platforms,
         //  but still land ON them
         const collisionTest = {
@@ -159,19 +193,36 @@ export default class Main extends Phaser.Scene {
             down: false
         };
 
-        while ( this.lastPlatformHeight > ( 100 - config.canvas.height ) ) {
+        while ( this.lastPlatform.y > ( MIN_PLATFORM_Y ) ) {
             // Generate a random position
-            platformX = Math.floor(Math.random() * (config.canvas.width - MIN_PLATFORM_WIDTH));
-            platformWidth = MIN_PLATFORM_WIDTH + Math.floor(Math.random() * (config.canvas.width - platformX - MIN_PLATFORM_WIDTH));
-            platformY = this.lastPlatformHeight - (38 + Math.ceil(Math.random() * 150));
+            if ( this.lastPlatform.width >= config.canvas.width ) {
+                // Previous platform was the ground, new platform can be anywhere
+                platformX = Math.floor(Math.random() * (config.canvas.width - MIN_PLATFORM_WIDTH));
+            }
+            else {
+                // Generate a random horizontal position at most MAX_PLATFORM_X_DISTANCE away from the previous platform
+                platformXRatio = this.lastPlatform.x / (config.canvas.width - this.lastPlatform.width);
+                platformXDelta = (Math.floor(Math.random() * MAX_PLATFORM_X_DISTANCE) - ( platformXRatio * MAX_PLATFORM_X_DISTANCE));
+                platformX = this.lastPlatform.x + ( platformXDelta >= 0 ? platformXDelta + this.lastPlatform.width : platformXDelta - this.lastPlatform.width );
+            }
+            // Ensure that the generated distance is within the canvas
+            platformX = Math.max(Math.min(platformX, config.canvas.width), 0);
+            platformWidth = Math.min(MIN_PLATFORM_WIDTH + Math.floor(Math.random() * MAX_PLATFORM_WIDTH), config.canvas.width - platformX);
+            platformY = this.lastPlatform.y - (MIN_PLATFORM_Y_DISTANCE + Math.ceil(Math.random() * PLATFORM_Y_DISTANCE_DELTA));
             // Add the sprite
             newPlatform = this.add.tileSprite(platformX, platformY, platformWidth, 38, 'jungle-brown', 7);
             newPlatform.setOrigin(0, 1);
-            this.platforms.add(newPlatform);
+            if ( platformY > 0 ) {
+                this.startingPlatforms.add(newPlatform);
+            }
+            else {
+                this.platforms.add(newPlatform);
+            }
             newPlatform.body.setSize(platformWidth, 32);
             newPlatform.body.setOffset(0, 6);
             newPlatform.body.checkCollision = Object.assign(newPlatform.body.checkCollision, collisionTest);
-            this.lastPlatformHeight = platformY;
+            this.lastPlatform = newPlatform;
+            window.lastPlatform = this.lastPlatform;
         }
     }
 };
